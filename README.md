@@ -1,174 +1,140 @@
-# SHL Assessment Recommender
+# Assessment Recommendation System
 
-An intelligent recommendation system that suggests relevant SHL assessments based on natural language queries or job descriptions.
+An intelligent recommendation engine that suggests relevant assessments based on job descriptions or natural language queries.
 
-## 📊 Performance
+## Live Demo
 
-| Metric | Value |
-|--------|-------|
-| **Recall@5** | 44.7% |
-| **Recall@10** | 59.8% |
-| **Recall@20** | 70.2% |
+| Resource | URL |
+|----------|-----|
+| **API** | https://shl-assessment-recommender-i3m5.onrender.com |
+| **Frontend** | https://shl-assessment-recommender-six.vercel.app |
+| **GitHub** | https://github.com/BhumitArora/shl-assessment-recommender |
 
-## 🗂️ Project Structure
+## Performance
+
+| Approach | Recall@1 | Recall@5 | Recall@10 | Recall@20 |
+|----------|----------|----------|-----------|-----------|
+| TF-IDF Baseline | 0.0% | 18.0% | 28.0% | 35.0% |
+| + Query Expansion | 2.0% | 25.0% | 38.0% | 42.0% |
+| + Skill Detection | 2.0% | 32.7% | 47.7% | 47.7% |
+| + LLM Reranking | 4.0% | 35.2% | **50.5%** | 51.0% |
+
+## Project Structure
 
 ```
-Auto_assessment_recommender/
-│
-├── step1_data_ingestion/          # Data collection & scraping
-│   ├── scrape_shl.py              # Scrape SHL product catalog
-│   ├── enrich_data.py             # Enrich with additional metadata
-│   └── pdf_processing_llm.py      # Extract data from PDFs using LLM
-│
-├── step2_preprocessing/           # Data preprocessing & indexing
-│   ├── preprocess_json.py         # Clean and preprocess JSON data
-│   └── embeddings_generate.py     # Generate embeddings using Google API
-│
-├── step3_retrieval/               # Search & retrieval algorithms
-│   ├── hybrid_skill_search.py     # ⭐ Core hybrid search algorithm
-│   ├── tfidf_baseline.py          # TF-IDF baseline search
-│   └── embedding_search.py        # Embedding-based semantic search
-│
-├── step4_evaluation/              # Evaluation & prediction scripts
-│   ├── evaluate_recall.py         # Calculate Recall@K metrics
-│   └── generate_predictions.py    # Generate test set predictions
-│
-├── step5_api/                     # FastAPI application
-│   └── main.py                    # API server with /recommend endpoint
-│
-├── data/                          # Data files
-│   ├── processed_assessments.csv  # Main assessment database
-│   ├── assessment_embeddings_google.npy  # Pre-computed embeddings
-│   └── *.json                     # Raw and enriched catalog data
-│
-├── results/                       # Output results
-│   ├── predictions/               # Generated predictions
-│   │   └── test_predictions.csv   # Test set predictions
-│   ├── metrics/                   # Evaluation metrics
-│   │   ├── recall_metrics.csv     # Summary Recall@K
-│   │   └── per_query_recall.csv   # Per-query breakdown
-│   └── visualizations/            # Plots and charts
-│
-├── train.xlsx                     # Training data (10 queries)
-├── test-set.xlsx                  # Test data (9 queries)
-└── test_predictions.csv           # Final predictions for submission
+├── step1_data_ingestion/       # Scraping & data collection
+├── step2_preprocessing/        # Cleaning & embeddings
+├── step3_retrieval/            # Search algorithms
+│   ├── tfidf_baseline.py       # TF-IDF keyword search
+│   └── hybrid_skill_search.py  # Multi-skill hybrid search
+├── step4_evaluation/           # Metrics & predictions
+│   ├── evaluate_recall.py      # Recall@K calculation
+│   └── generate_predictions.py # Test set predictions
+├── step5_api/                  # FastAPI application
+│   └── main.py                 # API server
+├── frontend/                   # Web interface
+│   └── index.html              # Vercel-hosted UI
+├── data/                       # Assessment database
+│   ├── processed_assessments.csv
+│   └── assessment_embeddings_google.npy
+└── results/                    # Output files
+    ├── predictions/
+    └── metrics/
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
-### 1. Install Dependencies
 ```bash
-python -m venv shl
-source shl/bin/activate
-pip install pandas numpy scikit-learn fastapi uvicorn openpyxl
-```
+# Install dependencies
+pip install -r requirements.txt
 
-### 2. Evaluate the Model
-```bash
+# Run API locally
+cd step5_api
+uvicorn main:app --port 8000
+
+# Evaluate model
 cd step4_evaluation
 python evaluate_recall.py
 ```
 
-### 3. Generate Predictions
-```bash
-cd step4_evaluation
-python generate_predictions.py
+## API Endpoints
+
+### Health Check
+```
+GET /health
+```
+```json
+{"status": "healthy"}
 ```
 
-### 4. Start the API Server
-```bash
-cd step5_api
-uvicorn main:app --reload --port 8000
+### Get Recommendations
+```
+POST /recommend
+Content-Type: application/json
+
+{"query": "Python developer with SQL experience"}
 ```
 
-## 🔧 Algorithm Overview
-
-### Hybrid Skill-Based Search
-
-The core algorithm (`step3_retrieval/hybrid_skill_search.py`) combines:
-
-1. **Skill Detection**: Regex-based pattern matching to identify skills in queries
-2. **Query Expansion**: Each skill is mapped to relevant search terms
-3. **Priority-Weighted Allocation**: High-priority skills get more recommendation slots
-4. **TF-IDF Search**: Expanded queries are matched against assessment descriptions
-
-### Skill Patterns
-
-| Category | Skills |
-|----------|--------|
-| **Technical** | Python, SQL, JavaScript, Java, Excel |
-| **AI/ML** | Machine Learning, Data Science, AI |
-| **Cognitive** | Reasoning, Aptitude, Verify G+ |
-| **Personality** | OPQ, Behavioral, Motivation |
-| **Business** | Sales, Marketing, Customer Support |
-| **Management** | Leadership, Product Management, Agile |
-
-## 📈 Results
-
-### Recall@K Summary
-
-| K | Mean Recall |
-|---|-------------|
-| 1 | 3.3% |
-| 5 | 44.7% |
-| **10** | **59.8%** |
-| 20 | 70.2% |
-
-### Per-Query Performance
-
-| Query Type | Recall@10 | Notes |
-|------------|-----------|-------|
-| Java Developers | 80% | Strong pattern match |
-| Graduate Sales | 40% | Entry-level coverage |
-| COO/Cultural | 67% | Leadership + OPQ |
-| Content Writer | 60% | SEO + English |
-| Bank Admin | 100% | Perfect match |
-| Data Analyst | 50% | Multi-skill coverage |
-
-## 🌐 API Usage
-
-```bash
-# Health check
-curl http://localhost:8000/health
-
-# Get recommendations
-curl -X POST http://localhost:8000/recommend \
-  -H "Content-Type: application/json" \
-  -d '{"query": "Looking for Python and SQL developers"}'
-```
-
-### Response Format
+Response:
 ```json
 {
-  "recommendations": [
+  "recommended_assessments": [
     {
-      "name": "Python (New)",
       "url": "https://www.shl.com/products/product-catalog/view/python-new/",
-      "duration": 40,
-      "test_type": "Knowledge & Skills"
+      "name": "Python (New)",
+      "adaptive_support": "No",
+      "description": "Multi-choice test that measures knowledge of Python programming...",
+      "duration": 11,
+      "remote_support": "Yes",
+      "test_type": ["Knowledge & Skills"]
     }
-  ],
-  "debug_info": {
-    "detected_skills": ["python", "sql"],
-    "processing_time": "0.15s"
-  }
+  ]
 }
 ```
 
-## 📝 Files
+## Approach
 
-- **train.xlsx**: 10 training queries with ground truth assessments
-- **test-set.xlsx**: 9 test queries for prediction
-- **test_predictions.csv**: Final predictions (10 per query)
+### 1. Skill Detection
+Regex-based pattern matching to identify skills in queries:
+- Technical: Python, SQL, Java, JavaScript, Excel
+- Cognitive: Reasoning, Aptitude, Verify
+- Personality: OPQ, Behavioral assessments
+- Business: Sales, Marketing, Leadership
 
-## 🔮 Future Improvements
+### 2. Query Expansion
+Role-based keyword mappings to enrich queries:
+```
+"Java" → "Java JVM J2EE Spring Hibernate backend"
+"Sales" → "Sales revenue client acquisition CRM"
+```
 
-1. Add semantic search with embeddings
-2. Implement LLM-based query understanding
-3. Add duration-based filtering
-4. Re-ranking with cross-encoder models
+### 3. Hybrid Search
+Combined TF-IDF keyword matching with skill-based slot allocation:
+- High priority skills get more recommendation slots
+- Ensures coverage of all detected skills
 
----
+### 4. LLM Reranking (Optional)
+LangChain + Gemini 2.0 Flash for semantic relevance scoring.
 
-*Built for SHL AI Intern Generative AI Assignment*
+## Tech Stack
 
+| Component | Technology |
+|-----------|------------|
+| Backend | FastAPI, Python |
+| Search | TF-IDF, Scikit-learn |
+| LLM | LangChain, Gemini |
+| Frontend | HTML/CSS/JS |
+| Deployment | Render, Vercel |
+
+## Files
+
+| File | Description |
+|------|-------------|
+| `train.xlsx` | 10 training queries with ground truth |
+| `test-set.xlsx` | 9 test queries |
+| `test_predictions.csv` | Final predictions for submission |
+| `requirements.txt` | Python dependencies |
+
+## License
+
+MIT

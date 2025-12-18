@@ -187,6 +187,63 @@ Generated **90 recommendations** (9 queries × 10 each)
 
 ---
 
+## LLM Integration: Reranking with LangChain + Gemini
+
+### RAG Architecture (Retrieval-Augmented Generation)
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  User Query     │────▶│  TF-IDF Search  │────▶│  Top 15 Results │
+│  (Job Desc)     │     │  + Skill Det.   │     │  (Candidates)   │
+└─────────────────┘     └─────────────────┘     └────────┬────────┘
+                                                         │
+                                                         ▼
+                        ┌─────────────────────────────────────────┐
+                        │       LLM Reranking (Gemini 1.5)        │
+                        │  • Semantic relevance scoring           │
+                        │  • Role-level matching                  │
+                        │  • Duration appropriateness             │
+                        └────────────────────┬────────────────────┘
+                                             │
+                                             ▼
+                        ┌─────────────────────────────────────────┐
+                        │         Final Top 10 Results            │
+                        │      (Semantically Reranked)            │
+                        └─────────────────────────────────────────┘
+```
+
+### Technology Stack
+
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| Framework | **LangChain** | LLM orchestration |
+| LLM | **Gemini 1.5 Flash** | Fast reranking |
+| Prompt | ChatPromptTemplate | Structured prompts |
+| Parser | JsonOutputParser | Structured output |
+
+### LLM Reranking Prompt
+
+```
+You are an expert HR assessment specialist. Rerank assessments based on:
+1. How well the assessment tests required skills
+2. Whether assessment type matches role level
+3. Duration appropriateness
+
+Return top 10 as: {"rankings": [1, 5, 3, ...]}
+```
+
+### API Usage
+
+```bash
+# Without LLM (default - faster)
+curl -X POST /recommend -d '{"query": "...", "use_reranking": false}'
+
+# With LLM Reranking (more accurate)
+curl -X POST /recommend -d '{"query": "...", "use_reranking": true}'
+```
+
+---
+
 ## Conclusion
 
 | Component | Contribution |
@@ -194,9 +251,12 @@ Generated **90 recommendations** (9 queries × 10 each)
 | Skill Detection | +12% Recall |
 | Query Expansion | +10% Recall |
 | Priority Allocation | +9% Recall |
+| LLM Reranking | Semantic relevance (optional) |
 | **Total Improvement** | **+31.8% Recall@10** |
 
 **Final Performance:** 59.8% Recall@10 (2.1× baseline improvement)
+
+**Tech Stack:** FastAPI + LangChain + Gemini + TF-IDF (Hybrid RAG)
 
 ---
 

@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import json
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -15,6 +16,16 @@ from pydantic import BaseModel
 # AI & Logic Imports
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+
+# LangChain Imports for LLM-based Reranking
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_core.prompts import ChatPromptTemplate
+    from langchain_core.output_parsers import JsonOutputParser
+    LANGCHAIN_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_AVAILABLE = False
+    print("⚠️ LangChain not available. LLM reranking disabled.")
 
 # ==========================================
 # 1. SETUP & INITIALIZATION
@@ -307,10 +318,98 @@ def format_results(indices: List[int], scores: np.ndarray) -> List[dict]:
     return results
 
 # ==========================================
-# 3. MODELS & SCHEMAS
+# 3. LLM-BASED RERANKING (LangChain + Gemini)
+# ==========================================
+def llm_rerank(query: str, candidates: List[dict], top_k: int = 10) -> List[dict]:
+    """
+    Use LLM to rerank candidates based on semantic relevance to the query.
+    This is a Retrieval-Augmented Generation (RAG) approach where:
+    1. TF-IDF retrieves initial candidates
+    2. LLM reranks based on deeper understanding
+    """
+    if not LANGCHAIN_AVAILABLE:
+        print("⚠️ LLM reranking skipped - LangChain not available")
+        return candidates[:top_k]
+    
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        print("⚠️ LLM reranking skipped - No API key")
+        return candidates[:top_k]
+    
+    try:
+        # Initialize Gemini LLM via LangChain
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-1.5-flash",
+            google_api_key=api_key,
+            temperature=0
+        )
+        
+        # Create candidate list for LLM
+        candidate_info = []
+        for i, c in enumerate(candidates[:15]):  # Send top 15 for reranking
+            candidate_info.append(f"{i+1}. {c['name']} - Duration: {c.get('duration', 'N/A')} mins, Type: {', '.join(c.get('test_type', []))}")
+        
+        candidates_text = "\n".join(candidate_info)
+        
+        # Reranking prompt
+        rerank_prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are an expert HR assessment specialist. Your task is to rerank assessment recommendations based on relevance to the job requirements.
+
+Consider:
+1. How well the assessment tests the required skills
+2. Whether the assessment type matches the role level
+3. Duration appropriateness for the hiring context
+
+Return a JSON object with a "rankings" key containing an array of the top 10 assessment numbers in order of relevance."""),
+            ("human", """Job Requirements:
+{query}
+
+Available Assessments:
+{candidates}
+
+Rerank and return the top 10 most relevant assessments as JSON:
+{{"rankings": [1, 5, 3, ...]}}""")
+        ])
+        
+        # Create chain with JSON output parser
+        parser = JsonOutputParser()
+        chain = rerank_prompt | llm | parser
+        
+        # Get reranked order
+        result = chain.invoke({
+            "query": query[:1000],  # Limit query length
+            "candidates": candidates_text
+        })
+        
+        rankings = result.get("rankings", list(range(1, 11)))
+        
+        # Reorder candidates based on LLM ranking
+        reranked = []
+        seen = set()
+        for rank in rankings:
+            idx = rank - 1  # Convert to 0-indexed
+            if 0 <= idx < len(candidates) and idx not in seen:
+                reranked.append(candidates[idx])
+                seen.add(idx)
+        
+        # Fill remaining slots if LLM didn't return enough
+        for i, c in enumerate(candidates):
+            if i not in seen and len(reranked) < top_k:
+                reranked.append(c)
+        
+        print(f"✅ LLM Reranking complete: {rankings[:top_k]}")
+        return reranked[:top_k]
+        
+    except Exception as e:
+        print(f"⚠️ LLM reranking failed: {e}")
+        return candidates[:top_k]
+
+# ==========================================
+# 4. MODELS & SCHEMAS
 # ==========================================
 class UserQuery(BaseModel):
     query: str
+    use_reranking: bool = False  # Optional: Enable LLM reranking
 
 class AssessmentItem(BaseModel):
     url: str
@@ -322,6 +421,7 @@ class AssessmentItem(BaseModel):
 class RecommendationResponse(BaseModel):
     recommended_assessments: List[AssessmentItem]
     skills_detected: Optional[List[str]] = None
+    reranking_applied: bool = False
 
 class HealthResponse(BaseModel):
     status: str
@@ -372,6 +472,11 @@ async def health_check():
 async def recommend(payload: UserQuery):
     """
     Recommend assessments based on a natural language query or job description.
+    
+    Uses a hybrid RAG approach:
+    1. TF-IDF + Skill Detection for initial retrieval
+    2. Optional LLM reranking for semantic relevance (set use_reranking=true)
+    
     Returns up to 10 most relevant assessments with skill coverage guarantee.
     """
     start_time = time.time()
@@ -379,12 +484,17 @@ async def recommend(payload: UserQuery):
     if not payload.query or len(payload.query.strip()) == 0:
         raise HTTPException(status_code=400, detail="Query cannot be empty")
     
-    # Run multi-skill search
-    results = multi_skill_search(payload.query, k=10)
+    # Step 1: Run multi-skill search (TF-IDF + Skill Detection)
+    results = multi_skill_search(payload.query, k=15 if payload.use_reranking else 10)
+    
+    # Step 2: Optional LLM Reranking (RAG approach)
+    if payload.use_reranking:
+        results = llm_rerank(payload.query, results, top_k=10)
+        print(f"🔄 LLM Reranking applied")
     
     # Format response
     recommendations = []
-    for r in results:
+    for r in results[:10]:
         recommendations.append(AssessmentItem(
             url=r["url"],
             adaptive_support=r["adaptive_support"],
@@ -398,7 +508,8 @@ async def recommend(payload: UserQuery):
     
     return {
         "recommended_assessments": recommendations,
-        "skills_detected": skills
+        "skills_detected": skills,
+        "reranking_applied": payload.use_reranking
     }
 
 @app.get("/")

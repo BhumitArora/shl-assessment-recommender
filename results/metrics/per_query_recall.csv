@@ -1,0 +1,14 @@
+Query,Skills,Ground_Truth,Recall@1,Recall@5,Recall@10,Recall@20
+I am hiring for Java developers who can also collaborate eff...,java,5,0.0,0.4,0.8,0.8
+"I want to hire new graduates for a sales role in my company,...","sales, graduate",5,0.0,0.4,0.4,0.6
+I am looking for a COO for my company in China and I want to...,"coo, cultural",6,0.0,0.5,0.6666666666666666,1.0
+"KEY RESPONSIBITILES:
+
+Manage the sound-scape of the station ...","sales, english_communication, marketing, content_writing",5,0.0,0.4,0.6,0.6
+"Content Writer required, expert in English and SEO.","english_communication, content_writing",5,0.0,0.6,0.6,0.6
+"Find me 1 hour long assesment for the below job at SHL
+Job D...","sql, javascript, java, manager",8,0.0,0.125,0.375,0.375
+"ICICI Bank Assistant Admin, Experience required 0-2 years, t...","bank, admin",2,0.0,1.0,1.0,1.0
+We're looking for a Marketing Manager who can drive Recro’s ...,"sales, english_communication, marketing, content_writing",4,0.0,0.25,0.5,0.75
+Based on the JD below recommend me assessment for the Consul...,"analyst, sales, graduate, english_communication",3,0.3333333333333333,0.6666666666666666,0.6666666666666666,0.6666666666666666
+I want to hire a Senior Data Analyst with 5 years of experie...,"python, sql, excel, analyst",8,0.0,0.125,0.375,0.625

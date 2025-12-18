@@ -305,12 +305,19 @@ def format_results(indices: List[int], scores: np.ndarray) -> List[dict]:
             except:
                 test_type = []
         
+        # Get description from rich_text or description column
+        description = str(row.get("description", ""))
+        if not description or description == "nan":
+            rich_text = str(row.get("rich_text", ""))
+            description = rich_text[:200] + "..." if len(rich_text) > 200 else rich_text
+        
         results.append({
             "url": str(row["url"]),
             "name": str(row.get("name", "")),
             "adaptive_support": "Yes" if "adaptive" in str(row.get("name", "")).lower() else "No",
+            "description": description,
+            "duration": int(row["duration_mins"]) if pd.notna(row.get("duration_mins")) else 0,
             "remote_support": "Yes",
-            "duration": int(row["duration_mins"]) if pd.notna(row.get("duration_mins")) else None,
             "test_type": test_type if isinstance(test_type, list) else [test_type],
             "score": float(scores[idx])
         })
@@ -413,15 +420,15 @@ class UserQuery(BaseModel):
 
 class AssessmentItem(BaseModel):
     url: str
-    adaptive_support: str = ""
-    remote_support: str = ""
-    duration: Optional[int] = None
+    name: str = ""
+    adaptive_support: str = "No"
+    description: str = ""
+    duration: int = 0
+    remote_support: str = "Yes"
     test_type: List[str] = []
 
 class RecommendationResponse(BaseModel):
     recommended_assessments: List[AssessmentItem]
-    skills_detected: Optional[List[str]] = None
-    reranking_applied: bool = False
 
 class HealthResponse(BaseModel):
     status: str
@@ -492,25 +499,30 @@ async def recommend(payload: UserQuery):
         results = llm_rerank(payload.query, results, top_k=10)
         print(f"🔄 LLM Reranking applied")
     
-    # Format response
+    # Format response - match exact required format
     recommendations = []
     for r in results[:10]:
+        # Extract name from URL or use provided name
+        name = r.get("name", "")
+        if not name:
+            # Extract from URL slug
+            url_parts = r["url"].rstrip("/").split("/")
+            slug = url_parts[-1] if url_parts else ""
+            name = slug.replace("-", " ").title().replace(" New", " (New)")
+        
         recommendations.append(AssessmentItem(
             url=r["url"],
-            adaptive_support=r["adaptive_support"],
-            remote_support=r["remote_support"],
-            duration=r["duration"],
-            test_type=r["test_type"]
+            name=name,
+            adaptive_support=r.get("adaptive_support", "No"),
+            description=r.get("description", ""),
+            duration=int(r.get("duration", 0)) if r.get("duration") else 0,
+            remote_support=r.get("remote_support", "Yes"),
+            test_type=r.get("test_type", [])
         ))
     
-    skills = [s[0] for s in detect_skills(payload.query)]
-    print(f"✅ Processed query in {time.time() - start_time:.2f}s | Skills detected: {skills}")
+    print(f"✅ Processed query in {time.time() - start_time:.2f}s")
     
-    return {
-        "recommended_assessments": recommendations,
-        "skills_detected": skills,
-        "reranking_applied": payload.use_reranking
-    }
+    return {"recommended_assessments": recommendations}
 
 @app.get("/")
 async def root():

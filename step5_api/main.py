@@ -331,7 +331,7 @@ def llm_rerank(query: str, candidates: List[dict], top_k: int = 10) -> List[dict
         print("⚠️ LLM reranking skipped - LangChain not available")
         return candidates[:top_k]
     
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if not api_key:
         print("⚠️ LLM reranking skipped - No API key")
         return candidates[:top_k]
@@ -339,7 +339,7 @@ def llm_rerank(query: str, candidates: List[dict], top_k: int = 10) -> List[dict
     try:
         # Initialize Gemini LLM via LangChain
         llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash",
             google_api_key=api_key,
             temperature=0
         )
